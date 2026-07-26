@@ -2,6 +2,8 @@
 
 Монорепа для автобатлера в духе фэнтези-армий.
 
+Игровой движок (кампания, рекрут, деплой, бой, мораль) авторитетен на Rails (`backend/app/domain/sim`). Frontend показывает UI, optimistic-команды и replay; исходы раундов считаются на сервере.
+
 ## Один запуск через Docker
 
 ```bash
@@ -25,8 +27,8 @@ docker compose down
 
 ## Структура
 
-- `backend` - Rails 8 API с PostgreSQL
-- `frontend` - React + Vite клиент
+- `backend` — Rails 8 API + domain `Sim` (каталог, кампания, бой) + нормализованное состояние кампании в PostgreSQL
+- `frontend` — React + Vite клиент (optimistic command queue, placement preview, battle replay)
 
 ## Требования
 
@@ -41,6 +43,7 @@ docker compose down
 cd backend
 bundle install
 bin/rails db:prepare
+bin/rails db:seed
 bin/rails server
 ```
 
@@ -50,7 +53,15 @@ Backend будет доступен на `http://localhost:3000`.
 
 ```bash
 curl http://localhost:3000/api/status
+curl http://localhost:3000/api/game_catalog
 ```
+
+Основные command endpoints:
+
+- `POST /api/games` — создать кампанию
+- `POST /api/games/:id/assign_faction|recruit|dismiss|attach_hero|deploy|...`
+- `POST /api/games/:id/prepare_round`
+- `POST /api/games/:id/advance_round` — серверная симуляция раунда
 
 ## Запуск frontend
 
@@ -66,4 +77,14 @@ Frontend будет доступен на `http://localhost:5173`.
 
 ```bash
 VITE_API_BASE_URL=http://localhost:3000 npm run dev
+```
+
+Для Docker frontend обычно указывает на `http://localhost:13000`.
+
+## Тесты backend
+
+```bash
+cd backend
+RAILS_ENV=test bin/rails db:prepare db:seed
+bin/rails test
 ```
