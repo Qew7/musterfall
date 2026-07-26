@@ -11,8 +11,11 @@ docker compose up --build
 После старта:
 
 - frontend: http://localhost:5173
-- backend: http://localhost:3000/api/status
-- postgres: localhost:5432
+- backend: http://localhost:13000/api/status
+
+Порт backend на Mac настраивается через `.env` (`BACKEND_HOST_PORT`, по умолчанию 13000) — чтобы не пересекаться с другими проектами на 3000.
+
+База доступна только внутри Docker-сети (`db:5432`), порт на Mac не публикуется.
 
 Остановка:
 
