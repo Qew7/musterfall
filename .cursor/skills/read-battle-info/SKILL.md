@@ -1,15 +1,58 @@
 ---
 name: read-battle-info
 description: >-
-  Fully inspect Musterfall battle data from DB, matchups, and dumps. Use when
-  debugging a fight, tracing charge/movement/footprint bugs, finding a battle by
-  player names (Полководец/Бот), reading phase actions, or the user asks to
-  look at a бой / battle / replay / RoundMatchup.
+  Fully inspect Musterfall battle data from DB, matchups, and dumps. Prefer
+  docker exec on the Compose backend (musterfall-backend-1) before local rails
+  runner. Use when debugging a fight, tracing charge/movement/footprint bugs,
+  finding a battle by player names (Полководец/Бот), reading phase actions, or
+  the user asks to look at a бой / battle / replay / RoundMatchup.
 ---
 
 # Read Musterfall Battle Info
 
-Do **not** rely on `development.log` or empty seed shells. Prefer `bin/rails runner` from `backend/`, then frontend replay only for visuals.
+Do **not** rely on `development.log` or empty seed shells. Query the DB via Rails runner, then frontend replay only for visuals.
+
+## How to run queries (DB access)
+
+Live game data lives in the Docker Compose Postgres (`db` service). **Always try Docker first**; local `backend/` runner only as fallback (often empty / wrong DB).
+
+1. **Docker (preferred)** — from repo root:
+
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}' | grep -E 'backend|db'
+# typical: musterfall-backend-1
+docker exec musterfall-backend-1 bin/rails runner '...'
+```
+
+If the backend container name differs, resolve it:
+
+```bash
+docker compose ps -q backend | xargs -I{} docker inspect -f '{{.Name}}' {} | sed 's#^/##'
+# or: docker ps --format '{{.Names}}' | grep backend
+```
+
+Long Ruby: pass via heredoc so quotes survive:
+
+```bash
+docker exec musterfall-backend-1 bin/rails runner "$(cat <<'RUBY'
+# ... query ...
+RUBY
+)"
+```
+
+Dump JSON from the container to the host when needed (`./backend` is mounted at `/rails`):
+
+```bash
+# write inside container to /rails/tmp/... then read on host at backend/tmp/...
+docker exec musterfall-backend-1 bin/rails runner 'File.write("tmp/battle_dumps/x.json", ...)'
+# or: docker cp musterfall-backend-1:/rails/tmp/... ./backend/tmp/...
+```
+
+2. **Local fallback** — only if Docker is down / unavailable:
+
+```bash
+cd backend && bin/rails runner '...'
+```
 
 ## Source priority
 
@@ -20,6 +63,8 @@ Do **not** rely on `development.log` or empty seed shells. Prefer `bin/rails run
 5. **Ignore** `Game#state_payload` — always unused `{}`
 
 ## Find the battle
+
+Run the snippets below via **`docker exec … bin/rails runner`** (see above).
 
 ```ruby
 # Prefer game_id + names; verify it actually fought
@@ -117,13 +162,14 @@ result = Sim::Battle::Simulator.call(
 
 ## Checklist
 
-1. Locate `Battle` + matching `RoundMatchup`
-2. Assert non-empty combatants **and** actions / rounds
-3. Start poses from `initial_snapshot`; end from payloads
-4. Dig phase `actions` (not only top-level events)
-5. Remember camelCase vs snake_case by store
-6. Re-run Simulator with matchup seed if DB row is thin
-7. Frontend replay only after data quality check
+1. Query via **Docker** `musterfall-backend-1` (or current compose backend) first; local runner only if Docker is unavailable
+2. Locate `Battle` + matching `RoundMatchup`
+3. Assert non-empty combatants **and** actions / rounds
+4. Start poses from `initial_snapshot`; end from payloads
+5. Dig phase `actions` (not only top-level events)
+6. Remember camelCase vs snake_case by store
+7. Re-run Simulator with matchup seed if DB row is thin
+8. Frontend replay only after data quality check
 
 ## Key files
 
