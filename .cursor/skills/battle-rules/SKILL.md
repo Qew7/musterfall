@@ -27,21 +27,25 @@ Examples:
 
 | Rule | Files |
 |------|--------|
-| fear | `rules/fear/melee.rb` |
-| breath | `rules/breath/shooting.rb` |
-| flying | `rules/flying/movement.rb` |
-| ground (default planner) | `rules/ground/movement.rb` |
+| fear | `rules/fear/melee.rb`, `rules/fear/morale.rb` |
+| breath / volley / blast | `rules/*/shooting.rb` |
+| charge / ferocious / steadfast / skirmisher | `rules/*/melee.rb` |
+| machine | `rules/machine/shooting.rb` |
+| undead | `rules/undead/morale.rb`, `rules/undead/round.rb` |
+| flying / ground | `rules/flying/movement.rb`, `rules/ground/movement.rb` |
+| bannerAura / steadfastAura | `rules/*/setup.rb` |
 
 If a rule later touches two phases: add another file in the **same** rule folder (`rules/fear/morale.rb`), then register it.
 
 Zeitwerk: `rules/fear/melee.rb` → `Sim::Battle::Rules::Fear::Melee`.
+Zeitwerk: `rules/banner_aura/setup.rb` → `Sim::Battle::Rules::BannerAura::Setup`.
 
 ## When describing a new rule (planning / specs)
 
 State explicitly:
 
 1. **Rule key** — ability/template name (`fear`, `flying`, `breath`).
-2. **Phases touched** — `melee` / `shooting` / `movement` / `morale` / …
+2. **Phases touched** — `melee` / `shooting` / `movement` / `morale` / `setup` / `round` / …
 3. **Hooks to override** — list method names from the contract below.
 4. **Trigger** — when it applies (`abilities.include?("fear")`, `shooting_template == "breath"`, …).
 5. **Behavior** — concrete outcomes (cancel assault, leap landing, template hits).
@@ -55,17 +59,27 @@ Do **not** specify “edit `phases/melee.rb` to if fear…”. Specify “add `r
 
 Optional methods on a rule module (`module_function`). `RuleSet` only calls what exists.
 
-| Hook | Phase / caller | Semantics |
-|------|----------------|-----------|
-| `before_play!(ctx)` | start of phase (`ctx`: `:phase`, `:acting_side`, `:target_side`, `:round_number`, …) | side effects, checks, push actions |
-| `allow_attack?(attacker, ctx)` | before melee resolve | AND across rules; `false` skips attacker |
-| `applies?(profile, attack_type)` | shooting/missile | whether this rule owns the strike |
-| `attack_victims(...)` | targeting | victim list (models_hit, multipliers, …) |
-| `resolve_missile_strike!(...)` | attack resolution | apply damage + logs when `applies?` |
-| `template_descriptor(...)` | replay overlay | shape/points for frontend |
-| `expected_damage(...)` | missile AI | must match resolve semantics |
-| `plan_entries` / `plan_entry` / `build_approach_intent` | movement decisions | planner API |
-| `corner_contact_reachable?(...)` | movement facade via `planner_for` | reachability for that move style |
+| Hook | Aggregation | Phase / caller | Semantics |
+|------|-------------|----------------|-----------|
+| `before_play!(ctx)` | each | start of phase | side effects, checks, push actions |
+| `allow_attack?(attacker, ctx)` | AND | before melee resolve | `false` skips attacker |
+| `applies?(profile, attack_type)` | first match | shooting/missile | whether this rule owns the strike |
+| `attack_victims(...)` | via `find_applicable` | targeting | victim list (models_hit, multipliers, …) |
+| `resolve_missile_strike!(...)` | via `find_applicable` | attack resolution | apply damage + logs |
+| `template_descriptor(...)` | via `find_applicable` | replay overlay | shape/points for frontend |
+| `expected_damage(...)` | via `find_applicable` | missile AI | must match resolve semantics |
+| `damage_factor(attacker, defender, attack_type, vector, round_number)` | **product** | `AttackResolution.damage` | ability multipliers (default 1.0) |
+| `facing_damage_factor(defender, vector)` | **first non-nil** | `AttackResolution.damage` | skirmisher → 1.0; else phase default facing |
+| `morale_threshold_delta(combatant, allies, enemies, combat_score_delta)` | **sum** | `Morale.resolve_check` | fear −1, disciplined +1 |
+| `effective_morale(combatant, allies)` | **first non-nil** | `Morale.effective_morale` | muster override |
+| `handle_morale_failure!(combatant, check, ctx)` | **first truthy Hash** | `Morale.resolve_action` | undead HP loss instead of flee |
+| `requires_front_arc_for_ranged?(attacker)` | **AND** (default true) | targeting / reposition | skirmisher → false |
+| `apply_attach!(host_ctx)` | each | `State` combatant build | bannerAura / steadfastAura |
+| `apply_passives!(side)` | concat events | `State.apply_faction_passives!` | undead regen |
+| `plan_entries` / `plan_entry` / `build_approach_intent` | planner API | movement decisions | |
+| `corner_contact_reachable?(...)` | via `planner_for` | movement facade | |
+
+Damage walks `Rules.for(Rules.damage_phase_for(attack_type))` (`melee` vs `shooting`; magic uses shooting registry). Default facing when no rule returns a factor: rear 1.55, flank 1.25, else 1.0.
 
 Movement planners are selected by `Rules.planner_for_movement(combatant)` (ability → Flying, else Ground), not only via `RuleSet` chain.
 
@@ -75,11 +89,16 @@ In [`rules.rb`](backend/app/domain/sim/battle/rules.rb), index **by phase**:
 
 ```ruby
 REGISTRY = {
-  melee: -> { [ Fear::Melee ] },
-  shooting: -> { [ Breath::Shooting ] },
-  movement: -> { [ Flying::Movement ] }  # optional; planners often via planner_for_movement
+  melee: -> { [ Fear::Melee, Charge::Melee, Ferocious::Melee, Steadfast::Melee, Skirmisher::Melee ] },
+  shooting: -> { [ Breath::Shooting, Volley::Shooting, Blast::Shooting, Machine::Shooting, Steadfast::Melee, Skirmisher::Melee ] },
+  morale: -> { [ Undead::Morale, Fear::Morale, Disciplined::Morale, Muster::Morale ] },
+  setup: -> { [ BannerAura::Setup, SteadfastAura::Setup ] },
+  round: -> { [ Undead::Round ] },
+  movement: -> { [ Flying::Movement ] }
 }.freeze
 ```
+
+`Steadfast::Melee` / `Skirmisher::Melee` are dual-registered so facing/steadfast factors also apply to shooting/magic damage.
 
 After adding a phase file, **register it** (or wire `planner_for_*` for movement defaults).
 
@@ -87,14 +106,14 @@ After adding a phase file, **register it** (or wire `planner_for_*` for movement
 
 Phases may only:
 
-1. Call `Rules.for(:phase).before_play!(ctx)` / `allow_attack?` / `find_applicable`
+1. Call `Rules.for(:phase).*` hooks (`before_play!`, `allow_attack?`, `find_applicable`, `damage_factor`, …)
 2. Delegate planner methods to `Rules.planner_for_movement` / rule modules
-3. Keep shared defaults (generic wheeled path, single-target shot)
+3. Keep shared defaults (generic wheeled path, single-target shot, default facing table)
 
 **Forbidden in phases / decisions facades:**
 
-- `if abilities.include?("fear")` / `"flying"` / template branches for special weapons
-- Inlined leap / teardrop / fear-check logic
+- `if abilities.include?("fear")` / `"flying"` / `"charge"` / template branches for special weapons
+- Inlined leap / teardrop / fear-check / undead-break logic
 
 Put those in `rules/<rule>/<phase>.rb`. Shared geometry → `geometry/battlefield/` (e.g. `templates.rb`).
 
