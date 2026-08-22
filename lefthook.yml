@@ -1,0 +1,21 @@
+pre-commit:
+  parallel: true
+  commands:
+    rubocop:
+      root: backend/
+      glob: "*.{rb,rake}"
+      run: bin/rubocop --force-exclusion -- {staged_files}
+    leftovers:
+      root: backend/
+      glob: "*.rb"
+      run: bundle exec leftovers
+    rule_layers:
+      root: backend/
+      glob: "*.rb"
+      run: ruby test/support/rule_layer_lint.rb
+
+pre-push:
+  commands:
+    minitest:
+      root: backend/
+      run: bin/rails test

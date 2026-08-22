@@ -62,7 +62,11 @@ Optional methods on a rule module (`module_function`). `RuleSet` only calls what
 | Hook | Aggregation | Phase / caller | Semantics |
 |------|-------------|----------------|-----------|
 | `before_play!(ctx)` | each | start of phase | side effects, checks, push actions |
+| `after_play!(ctx)` | each | end of phase / turn | movement and timed-effect triggers |
+| `after_hit!(ctx)` | each | after a successful strike | reactions such as retaliatory damage |
 | `allow_attack?(attacker, ctx)` | AND | before melee resolve | `false` skips attacker |
+| `allow_target?(attacker, target, attack_type)` | AND | missile targeting | concealment and target restrictions |
+| `hit_chance_factor(attacker, defender, attack_type)` | product | attack resolution / missile AI | temporary accuracy penalties |
 | `applies?(profile, attack_type)` | first match | shooting/missile | whether this rule owns the strike |
 | `attack_victims(...)` | via `find_applicable` | targeting | victim list (models_hit, multipliers, …) |
 | `resolve_missile_strike!(...)` | via `find_applicable` | attack resolution | apply damage + logs |
@@ -74,6 +78,7 @@ Optional methods on a rule module (`module_function`). `RuleSet` only calls what
 | `effective_morale(combatant, allies)` | **first non-nil** | `Morale.effective_morale` | muster override |
 | `handle_morale_failure!(combatant, check, ctx)` | **first truthy Hash** | `Morale.resolve_action` | undead HP loss instead of flee |
 | `requires_front_arc_for_ranged?(attacker)` | **AND** (default true) | targeting / reposition | skirmisher → false |
+| `movement_multiplier(combatant, ctx)` | product | movement budget | temporary movement modifiers |
 | `apply_attach!(host_ctx)` | each | `State` combatant build | bannerAura / steadfastAura |
 | `apply_passives!(side)` | concat events | `State.apply_faction_passives!` | undead regen |
 | `plan_entries` / `plan_entry` / `build_approach_intent` | planner API | movement decisions | |
@@ -150,6 +155,8 @@ Reuse existing action shapes (`fear_check`, shooting with `template`, movement m
 - [ ] seeds if ability/template changed (+ db:seed in container)
 - [ ] tests green
 ```
+
+Lefthook `rule_layers` (`ruby test/support/rule_layer_lint.rb`) fails if phases / decisions / pathing / geometry grow ability or flyer-mode branches. Move the branch; do not disable the scan.
 
 ## Anti-patterns
 

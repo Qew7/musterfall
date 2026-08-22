@@ -1,0 +1,16 @@
+---
+description: Battle rule policy lives in rules/<rule>/<phase>.rb; leftover rule_layers fails otherwise.
+globs: "**/app/domain/sim/battle/**/*.rb,**/app/domain/sim/geometry/**/*.rb"
+alwaysApply: false
+---
+
+# Battle rule layers
+
+Ability / maneuver / spell-effect policy goes in `backend/app/domain/sim/battle/rules/<rule>/<phase>.rb`.
+Phases execute hook results. Pathing and geometry do not know `flying`, `orbit_flank`, or `contact_wave`.
+
+Lefthook `rule_layers` (`ruby test/support/rule_layer_lint.rb`) is the lock. If it fails, **move the branch** — no allow escape, do not special-case the phase.
+
+Phases may call generic hooks (`before_play!`, `after_play!`, `after_hit!`); they must not branch on `SpellEffects.status?`.
+
+Dispatch exception: `Rules.planner_for_movement` in `rules.rb`.

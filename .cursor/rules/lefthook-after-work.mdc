@@ -1,0 +1,15 @@
+---
+description: After backend edits, leftover checks must pass before the agent stops.
+alwaysApply: true
+---
+
+# Lefthook after agent work
+
+`backend/` is a git submodule. When you change files there:
+
+1. Before finishing, run the matching leftover hook from the **monorepo root** (`BUNDLE_GEMFILE=backend/Gemfile`):
+   - Ruby/Rake edits → `lefthook run pre-commit --file backend/<path>`
+   - Behavior under `app/`, `test/`, `ext/`, or `lib/` → also `lefthook run pre-push`
+2. A Cursor `stop` hook re-runs **pre-commit** on dirty backend Ruby (rubocop, leftovers, `rule_layers`) and auto-follow-ups if it fails. Treat that as blocking.
+3. Do not claim done while leftover is red. Fix root cause, re-run the failing hook, then stop.
+4. `rule_layers` is a grep lock: ability / flyer-mode / `contact_wave?` policy must stay in `rules/<rule>/`. Move the branch — there is no allow escape.
