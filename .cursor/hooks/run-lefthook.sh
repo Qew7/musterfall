@@ -55,6 +55,7 @@ while IFS= read -r f; do
   [ -z "$f" ] && continue
   case "$f" in
     *.rb|*.rake)
+      [ -f "backend/$f" ] || continue
       if [ -z "$RUBY_FILES" ]; then
         RUBY_FILES="backend/$f"
       else

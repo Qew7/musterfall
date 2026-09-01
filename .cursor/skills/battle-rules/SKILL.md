@@ -29,11 +29,11 @@ Examples:
 |------|--------|
 | fear | `rules/fear/melee.rb`, `rules/fear/morale.rb` |
 | breath / volley / blast | `rules/*/shooting.rb` |
-| charge / ferocious / steadfast / skirmisher | `rules/*/melee.rb` |
+| charge / ferocious / resolute / skirmisher | `rules/*/melee.rb` |
 | machine | `rules/machine/shooting.rb` |
 | undead | `rules/undead/morale.rb`, `rules/undead/round.rb` |
 | flying / ground | `rules/flying/movement.rb`, `rules/ground/movement.rb` |
-| bannerAura / steadfastAura | `rules/*/setup.rb` |
+| bannerAura / resoluteAura | `rules/*/setup.rb` |
 
 If a rule later touches two phases: add another file in the **same** rule folder (`rules/fear/morale.rb`), then register it.
 
@@ -79,7 +79,7 @@ Optional methods on a rule module (`module_function`). `RuleSet` only calls what
 | `handle_morale_failure!(combatant, check, ctx)` | **first truthy Hash** | `Morale.resolve_action` | undead HP loss instead of flee |
 | `requires_front_arc_for_ranged?(attacker)` | **AND** (default true) | targeting / reposition | skirmisher → false |
 | `movement_multiplier(combatant, ctx)` | product | movement budget | temporary movement modifiers |
-| `apply_attach!(host_ctx)` | each | `State` combatant build | bannerAura / steadfastAura |
+| `apply_attach!(host_ctx)` | each | `State` combatant build | bannerAura / resoluteAura |
 | `apply_passives!(side)` | concat events | `State.apply_faction_passives!` | undead regen |
 | `plan_entries` / `plan_entry` / `build_approach_intent` | planner API | movement decisions | |
 | `corner_contact_reachable?(...)` | via `planner_for` | movement facade | |
@@ -94,16 +94,16 @@ In [`rules.rb`](backend/app/domain/sim/battle/rules.rb), index **by phase**:
 
 ```ruby
 REGISTRY = {
-  melee: -> { [ Fear::Melee, Charge::Melee, Ferocious::Melee, Steadfast::Melee, Skirmisher::Melee ] },
-  shooting: -> { [ Breath::Shooting, Volley::Shooting, Blast::Shooting, Machine::Shooting, Steadfast::Melee, Skirmisher::Melee ] },
+  melee: -> { [ Fear::Melee, Charge::Melee, Ferocious::Melee, Resolute::Melee, Skirmisher::Melee ] },
+  shooting: -> { [ Breath::Shooting, Volley::Shooting, Blast::Shooting, Machine::Shooting, Resolute::Melee, Skirmisher::Melee ] },
   morale: -> { [ Undead::Morale, Fear::Morale, Disciplined::Morale, Muster::Morale ] },
-  setup: -> { [ BannerAura::Setup, SteadfastAura::Setup ] },
+  setup: -> { [ BannerAura::Setup, ResoluteAura::Setup ] },
   round: -> { [ Undead::Round ] },
   movement: -> { [ Flying::Movement ] }
 }.freeze
 ```
 
-`Steadfast::Melee` / `Skirmisher::Melee` are dual-registered so facing/steadfast factors also apply to shooting/magic damage.
+`Resolute::Melee` / `Skirmisher::Melee` are dual-registered so facing/resolute factors also apply to shooting/magic damage.
 
 After adding a phase file, **register it** (or wire `planner_for_*` for movement defaults).
 
@@ -136,7 +136,7 @@ Reuse existing action shapes (`fear_check`, shooting with `template`, movement m
 
 - New ability → `db/seeds.rb` abilities list + templates that use it
 - Template kinds (`breath`) → `default_*_template_for` / explicit fields on templates
-- After seed changes in Docker: `docker compose exec backend bin/rails db:seed`
+- **Docker dev:** `seed-watcher` auto-runs `db:seed` on save — agents do **not** manually seed after edits; verify via `docker compose logs seed-watcher` if needed
 
 ## Tests
 
@@ -152,7 +152,7 @@ Reuse existing action shapes (`fear_check`, shooting with `template`, movement m
 - [ ] Phase/facade only delegates — no rule if-branches
 - [ ] Geometry kept out of rule policy when possible
 - [ ] summary + details + phase events
-- [ ] seeds if ability/template changed (+ db:seed in container)
+- [ ] seeds if ability/template changed (auto via seed-watcher in Docker; no manual db:seed)
 - [ ] tests green
 ```
 

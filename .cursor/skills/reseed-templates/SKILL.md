@@ -1,16 +1,29 @@
 ---
 name: reseed-templates
 description: >-
-  Re-run Musterfall db:seed after backend/db/seeds.rb changes without wiping
-  battle logs (RoundMatchup, Battle). Prefer docker exec on musterfall-backend-1.
-  Use when the user edits unit stats, factions, abilities, or upgrades in seeds
-  and asks to reseed, перезапустить сиды, обновить статы шаблонов, or keep
-  battle/replay history.
+  Musterfall catalog seeds: backend/db/seeds.rb is idempotent. With docker compose
+  up, seed-watcher auto-runs db:seed on save — agents do NOT manually seed after
+  edits. Use for verifying seed results, battle-log safety, local fallback without
+  Docker, or when user explicitly asks to reseed / перезапустить сиды.
 ---
 
 # Reseed Templates (Keep Battle Logs)
 
 `backend/db/seeds.rb` is **idempotent**: it upserts catalog data only. Safe command is **`db:seed`**, not destructive replant/reset.
+
+## Auto-seed in Docker (default dev)
+
+`docker compose up` starts **`seed-watcher`**: on every save of `backend/db/seeds.rb` it runs `db:seed` in the container.
+
+**Agents: after editing seeds in Docker dev, do NOT run `db:seed` yourself.** Save the file (or let your edit land on disk) and wait a few seconds. Check `docker compose logs seed-watcher --tail 20` only if you need confirmation.
+
+Do **not** also run `bin/watch-seeds` on the host — that duplicates the watcher.
+
+Manual `db:seed` only when:
+
+- `seed-watcher` is not running (`docker compose ps seed-watcher`)
+- Docker dev stack is down (local `cd backend && bin/rails db:seed`)
+- User explicitly asks to reseed or verification shows DB still stale
 
 ## Safe vs destructive
 
@@ -22,32 +35,26 @@ description: >-
 
 Seeds touch: `Faction`, `ArmyTemplate`, `Ability`, `HeroUpgrade`, `ArmyTemplateAbility` (join rows recreated per template). They do **not** touch `Game`, `RoundMatchup`, `Battle`, or campaign state.
 
-## Workflow
+## Verify after seed (optional)
 
-1. Confirm Docker backend is up (from repo root):
+When the user cares about battle logs or you need proof the catalog updated:
+
+1. Confirm stack is up:
 
 ```bash
 docker compose ps
-# typical container: musterfall-backend-1
 ```
 
-2. Snapshot battle-log counts **before** seeding:
+2. If you ran seed manually or want to confirm watcher finished, check logs:
 
 ```bash
-docker exec musterfall-backend-1 bin/rails runner \
-  'puts "RoundMatchups=#{RoundMatchup.count} Battles=#{Battle.count}"'
+docker compose logs seed-watcher --tail 20
 ```
 
-3. Run seeds:
+3. Spot-check counts and a template (replace `template_key` / fields as needed):
 
 ```bash
-docker exec musterfall-backend-1 bin/rails db:seed
-```
-
-4. Verify counts **unchanged** and spot-check a template if the user changed stats:
-
-```bash
-docker exec musterfall-backend-1 bin/rails runner "$(cat <<'RUBY'
+docker compose exec -T backend bin/rails runner "$(cat <<'RUBY'
 puts "RoundMatchups=#{RoundMatchup.count} Battles=#{Battle.count}"
 t = ArmyTemplate.find_by!(template_key: "state_swords")
 puts "state_swords melee=#{t.melee} movement=#{t.movement} morale=#{t.morale}"
@@ -55,13 +62,17 @@ RUBY
 )"
 ```
 
-Replace `template_key` / fields with whatever the user edited.
+4. Report: seed OK (auto or manual), battle counts unchanged, which templates changed.
 
-5. Report to the user: seed OK, battle counts unchanged, which templates were updated.
+## Manual seed (fallback)
 
-## Local fallback
+Only if auto watcher is unavailable:
 
-Only if Docker is unavailable:
+```bash
+docker compose exec -T backend bin/rails db:seed
+```
+
+Local without Docker:
 
 ```bash
 cd backend && bin/rails db:seed
@@ -77,6 +88,7 @@ Local DB may be empty or stale — prefer Docker for development data.
 
 ## Do not
 
+- Run `db:seed` after every seeds.rb edit when `seed-watcher` is Up — redundant.
 - Run `db:seed:replant`, `db:reset`, or `db:setup` when the user asks to keep battle logs.
 - Truncate or delete `round_matchups`, `battles`, or related tables.
 - Assume `Game#state_payload` reflects template changes — campaign entities keep their own copies until recruited/rebuilt.

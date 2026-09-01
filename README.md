@@ -25,6 +25,18 @@ docker compose up --build
 docker compose down
 ```
 
+### Авто-сиды при правке `seeds.rb`
+
+С `docker compose up` автоматически стартует сервис `seed-watcher`: при сохранении `backend/db/seeds.rb` он выполняет `db:seed` (idempotent upsert каталога, логи боёв не трогает).
+
+Логи watcher:
+
+```bash
+docker compose logs -f seed-watcher
+```
+
+Без Docker — `bin/watch-seeds` (локальный Rails или exec в контейнер `backend`).
+
 ## Структура
 
 - `backend` — Rails 8 API + domain `Sim` (каталог, кампания, бой) + нормализованное состояние кампании в PostgreSQL

@@ -30,6 +30,22 @@ services:
       db:
         condition: service_healthy
 
+  seed-watcher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      RAILS_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/musterfall_development
+    volumes:
+      - ./backend:/rails
+      - bundle_cache:/usr/local/bundle
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["./bin/watch-seeds"]
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend

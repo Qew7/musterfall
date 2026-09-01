@@ -4,7 +4,12 @@ pre-commit:
     rubocop:
       root: backend/
       glob: "*.{rb,rake}"
-      run: bin/rubocop --force-exclusion -- {staged_files}
+      run: >
+        bash -c 'exist=(); for f in {staged_files}; do
+          [ -f "$f" ] && exist+=("$f");
+        done;
+        ((${#exist[@]})) || exit 0;
+        exec bin/rubocop --force-exclusion -- "${exist[@]}"'
     leftovers:
       root: backend/
       glob: "*.rb"

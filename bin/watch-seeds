@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Host helper: run seed watcher locally or note that Docker seed-watcher is already up.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+if docker compose exec -T seed-watcher true 2>/dev/null; then
+  echo "seed-watcher уже запущен в Docker. Логи: docker compose logs -f seed-watcher"
+  exit 0
+fi
+
+if docker compose exec -T backend true 2>/dev/null; then
+  exec docker compose exec -it backend ./bin/watch-seeds
+fi
+
+exec backend/bin/watch-seeds
