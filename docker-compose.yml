@@ -21,6 +21,7 @@ services:
       RAILS_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@db:5432/musterfall_development
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_HOST_PORT:-5173}
+      SOLID_QUEUE_EXTERNAL: "true"
     ports:
       - "${BACKEND_HOST_PORT:-13000}:3000"
     volumes:
@@ -29,6 +30,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  jobs:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      RAILS_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/musterfall_development
+    volumes:
+      - ./backend:/rails
+      - bundle_cache:/usr/local/bundle
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["bin/jobs"]
+    restart: unless-stopped
 
   seed-watcher:
     build:
