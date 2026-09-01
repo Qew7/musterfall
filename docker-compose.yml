@@ -38,6 +38,8 @@ services:
     environment:
       RAILS_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@db:5432/musterfall_development
+      RAILS_MAX_THREADS: 8
+      SOLID_QUEUE_THREADS: 4
     volumes:
       - ./backend:/rails
       - bundle_cache:/usr/local/bundle

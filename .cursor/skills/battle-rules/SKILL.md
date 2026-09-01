@@ -40,6 +40,30 @@ If a rule later touches two phases: add another file in the **same** rule folder
 Zeitwerk: `rules/fear/melee.rb` → `Sim::Battle::Rules::Fear::Melee`.
 Zeitwerk: `rules/banner_aura/setup.rb` → `Sim::Battle::Rules::BannerAura::Setup`.
 
+## Rule header comment (required)
+
+Every phase file **must** include a `# rule:` line immediately before `module_function`:
+
+```ruby
+module Melee
+  # rule: shieldwall | melee | Incoming frontal charge damage ×0.75 (front vector, charged_distance > 0).
+  module_function
+```
+
+Format: `# rule: <key> | <phase> | <concept>`
+
+- **key** — ability key in snake_case (`shieldwall`, `armor_piercing`, `boar_charge`). Must match `abilities` in seeds (camelCase → underscore).
+- **phase** — filename without `.rb` (`melee`, `shooting`, `movement`, …).
+- **concept** — one sentence: trigger + mechanical effect. Describe what the rule does in any battle context; do not mention duels, deploy, or balance tuning.
+
+Shared helpers (`rules/toxin.rb`, `rules/magic_effects.rb`) use `phase` = `shared`.
+
+Agents read these via `bin/rails balance:rule_index` (`Balance::RuleCatalog`). After adding a rule:
+
+```bash
+docker exec musterfall-backend-1 env KEYS=your_rule bin/rails balance:rule_index
+```
+
 ## When describing a new rule (planning / specs)
 
 State explicitly:
@@ -148,6 +172,7 @@ Reuse existing action shapes (`fear_check`, shooting with `template`, movement m
 
 ```
 - [ ] rules/<rule>/<phase>.rb created (hooks only for that phase)
+- [ ] `# rule: key | phase | concept` before module_function (mechanics only, no duel/balance notes)
 - [ ] REGISTRY / planner_for_* updated
 - [ ] Phase/facade only delegates — no rule if-branches
 - [ ] Geometry kept out of rule policy when possible
